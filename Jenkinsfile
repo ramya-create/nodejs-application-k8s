@@ -27,15 +27,54 @@ pipeline {
                 bat 'docker build -t my-node-app .'
             }
         }
+    //    For run the docker
+    //     stage('Run Docker Container') {
+    //         steps {
+    //             bat 'docker rm -f node-app || true'
+    //             bat 'docker run -d --name node-app -p 3000:3000 my-node-app'
+    //         }
+    //     }
+    // }
 
-        stage('Run Docker Container') {
+        // For k8s integratiom
+        stage('Check Kubernetes Cluster') {
+          steps {
+            bat 'kubectl config current-context'
+            bat 'kubectl cluster-info'
+            bat 'kubectl get nodes'
+          }
+        }
+        
+        stage('Deploy to Kubernetes') {
             steps {
-                bat 'docker rm -f node-app || true'
-                bat 'docker run -d --name node-app -p 3000:3000 my-node-app'
+                script {
+                    def deleteStatus = bat(script: 'kubectl delete -f deployment.yaml', returnStatus: true)
+                    if (deleteStatus != 0) {
+                        echo 'No existing deployment to delete or deletion failed, continuing...'
+                    }
+                }
+                bat 'kubectl apply -f deployment.yaml'
+            }
+        }
+
+        stage('Expose Service') {
+            steps {
+                bat 'kubectl apply -f service.yaml'
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                bat 'kubectl get pods'
+                bat 'kubectl get svc'
+            }
+        }
+        stage('Access App') {
+            steps {
+                bat 'minikube service my-node-service'
             }
         }
     }
-
     post {
         always {
             echo 'Cleaning workspace and releasing agent...'
